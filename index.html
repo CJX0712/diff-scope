@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>差分镜 · Diff Scope</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#fff; --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af;
+    --line:#e5e7eb; --line2:#f0f1f3;
+    --acc:#0d9488; --acc-soft:#ecfdf5;
+    --del:#dc2626; --del-bg:#fef2f2; --del-bg2:#fee2e2;
+    --ins:#059669; --ins-bg:#ecfdf5; --ins-bg2:#d1fae5;
+    --mov:#7c3aed; --mov-bg:#f5f3ff;
+    --blue:#2563eb; --blue-soft:#eff6ff;
+    --amber:#d97706; --amber-soft:#fffbeb;
+    --red:#dc2626; --red-soft:#fef2f2;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:28px 22px 80px}
+  header.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+  header.top h1{font-size:23px;margin:0;letter-spacing:-.2px}
+  header.top .tag{color:var(--ink2);font-size:13px;margin:0}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .card-h{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line2);background:#fcfcfd;flex-wrap:wrap}
+  .card-h h2{font-size:14px;margin:0;font-weight:600}
+  .card-h .hint{font-size:12px;color:var(--ink3);font-weight:400}
+  .card-h .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .card-b{padding:16px}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:820px){ .two{grid-template-columns:1fr} }
+  .pane{display:flex;flex-direction:column;gap:6px}
+  .pane .lbl{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:8px}
+  .pane .lbl .n{margin-left:auto;font-family:var(--mono);color:var(--ink3);font-size:11px}
+  textarea{width:100%;min-height:150px;resize:vertical;padding:11px 12px;
+    border:1px solid var(--line);border-radius:9px;background:#fdfdfe;color:var(--ink);
+    font:12.5px/1.7 var(--mono);outline:none;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+  textarea:focus{border-color:var(--acc);background:#fff}
+
+  button{padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);
+    font:13px/1.4 inherit;cursor:pointer;white-space:nowrap}
+  button:hover{background:#f9fafb;border-color:#d1d5db}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.primary:hover{background:#0f766e}
+  button.sm{padding:4px 9px;font-size:12px}
+  select{padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);font:12.5px inherit;outline:none}
+  select:focus{border-color:var(--acc)}
+
+  .btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+  .chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2);cursor:pointer;user-select:none}
+  .chk input{accent-color:var(--acc)}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:10px}
+  .st{background:#fbfcfd;border:1px solid var(--line2);border-radius:9px;padding:8px 10px}
+  .st .v{font:600 16px/1.3 var(--mono);color:var(--ink)}
+  .st .k{font-size:11px;color:var(--ink3);margin-top:1px}
+  .st.d .v{color:var(--del)} .st.i .v{color:var(--ins)}
+  .st.m .v{color:var(--mov)} .st.a .v{color:var(--acc)}
+
+  .cvbox{background:#fbfcfd;border:1px solid var(--line2);border-radius:10px;padding:10px;overflow:auto;text-align:center}
+  canvas{display:block;margin:0 auto}
+  .rng{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--ink2)}
+  .rng input[type=range]{flex:1;accent-color:var(--acc)}
+  .rng b{font-family:var(--mono);color:var(--ink);min-width:52px;display:inline-block;text-align:right}
+
+  .diffbox{border:1px solid var(--line2);border-radius:9px;overflow:auto;max-height:560px;background:#fff}
+  table.diff{border-collapse:collapse;width:100%;font:12.5px/1.65 var(--mono)}
+  table.diff td{padding:1px 8px;vertical-align:top;white-space:pre-wrap;word-break:break-all}
+  td.ln{width:52px;text-align:right;color:#c3c8d0;user-select:none;background:#fcfcfd;border-right:1px solid var(--line2);font-size:11px}
+  td.mk{width:16px;text-align:center;user-select:none;font-weight:700}
+  tr.del td.c{background:var(--del-bg)} tr.del td.mk{background:var(--del-bg2);color:var(--del)}
+  tr.ins td.c{background:var(--ins-bg)} tr.ins td.mk{background:var(--ins-bg2);color:var(--ins)}
+  tr.mov td.c{background:var(--mov-bg)} tr.mov td.mk{background:#ede9fe;color:var(--mov)}
+  tr.eq td.c{color:var(--ink2)}
+  tr.hunk td{background:#f3f4f6;color:var(--ink3);font-size:11px;padding:2px 8px}
+  .ins2{background:var(--ins-bg2);border-radius:3px}
+  .del2{background:var(--del-bg2);border-radius:3px;text-decoration:line-through;color:#991b1b}
+
+  .flow{font:13px/1.9 var(--mono);padding:10px 12px;background:#fff;border:1px solid var(--line2);border-radius:9px;
+        max-height:420px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+  .flow .a{background:var(--ins-bg2);border-radius:3px}
+  .flow .d{background:var(--del-bg2);border-radius:3px;color:#991b1b;text-decoration:line-through}
+
+  pre.patch{font:12px/1.65 var(--mono);background:#fbfcfd;border:1px solid var(--line2);border-radius:9px;
+    padding:12px;max-height:360px;overflow:auto;white-space:pre;margin:0}
+  .ok{color:var(--ins);font-weight:600}
+  .bad{color:var(--red);font-weight:600}
+  .note{margin-top:10px;font-size:12px;color:var(--ink3);line-height:1.7}
+  .note b{color:var(--ink2)}
+  .empty{color:var(--ink3);font-size:12.5px;padding:14px;text-align:center}
+
+  .mvlist{display:flex;flex-direction:column;gap:6px}
+  .mv{display:flex;gap:10px;align-items:baseline;font-size:12px;background:var(--mov-bg);
+      border:1px solid #ede9fe;border-radius:7px;padding:6px 10px}
+  .mv .p{font-family:var(--mono);color:var(--mov);font-weight:600}
+  .mv .t{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-family:var(--mono)}
+
+  details.exp{padding:14px 16px}
+  details.exp summary{cursor:pointer;font-weight:600;font-size:13px;outline:none}
+  details.exp .body{margin-top:12px;font-size:13px;color:var(--ink2);line-height:1.85}
+  details.exp h4{margin:16px 0 6px;font-size:13px;color:var(--ink)}
+  details.exp code{font-family:var(--mono);background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px;color:var(--ink)}
+  details.exp ol,details.exp ul{margin:6px 0;padding-left:22px}
+  details.exp li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>差分镜 · Diff Scope</h1>
+    <p class="tag">不只是告诉你哪里变了 —— 把 Myers 算法找出这个答案的每一步都画出来</p>
+  </header>
+
+  <div class="card">
+    <div class="card-h"><h2>1 · 输入</h2><span class="hint">文本只在本机内存里，不联网、不上传</span>
+      <span class="right"><select id="sample"><option value="">— 内置示例 —</option></select></span>
+    </div>
+    <div class="card-b">
+      <div class="two">
+        <div class="pane">
+          <div class="lbl">原文 A<span class="n" id="cntA">0 行</span></div>
+          <textarea id="ta" spellcheck="false" placeholder="把旧版本粘到这里，或拖入文本文件"></textarea>
+        </div>
+        <div class="pane">
+          <div class="lbl">新文 B<span class="n" id="cntB">0 行</span></div>
+          <textarea id="tb" spellcheck="false" placeholder="把新版本粘到这里，或拖入文本文件"></textarea>
+        </div>
+      </div>
+      <div class="btns">
+        <button id="btnRun" class="primary">比对</button>
+        <button id="btnSwap">交换 A/B</button>
+        <button id="btnClear">清空</button>
+        <span class="sep"></span>
+        <span class="chk">粒度
+          <select id="gran">
+            <option value="line">行</option>
+            <option value="word">词</option>
+            <option value="char">字符</option>
+          </select>
+        </span>
+        <label class="chk"><input type="checkbox" id="cbWS"> 忽略首尾空白</label>
+        <label class="chk"><input type="checkbox" id="cbCase"> 忽略大小写</label>
+        <label class="chk"><input type="checkbox" id="cbMove" checked> 检测整块移动</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>2 · 概览</h2><span class="hint" id="ovHint"></span></div>
+    <div class="card-b">
+      <div class="stats">
+        <div class="st a"><div class="v" id="sD">0</div><div class="k">编辑距离 D</div></div>
+        <div class="st"><div class="v" id="sSim">0%</div><div class="k">相似度</div></div>
+        <div class="st"><div class="v" id="sLcs">0</div><div class="k">公共子序列</div></div>
+        <div class="st i"><div class="v" id="sIns">0</div><div class="k">新增</div></div>
+        <div class="st d"><div class="v" id="sDel">0</div><div class="k">删除</div></div>
+        <div class="st m"><div class="v" id="sMov">0</div><div class="k">移动块</div></div>
+        <div class="st"><div class="v" id="sNA">0</div><div class="k">A 单元数</div></div>
+        <div class="st"><div class="v" id="sNB">0</div><div class="k">B 单元数</div></div>
+        <div class="st"><div class="v" id="sMs">0</div><div class="k">耗时 ms</div></div>
+      </div>
+      <div class="note" id="noteOv"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>3 · Myers 编辑图</h2><span class="hint">横轴 = A 走到第几个单元，纵轴 = B 走到第几个单元</span>
+      <span class="right">
+        <button id="btnPlay" class="sm">播放</button>
+        <button id="btnEnd" class="sm">到终点</button>
+      </span>
+    </div>
+    <div class="card-b">
+      <div class="cvbox"><canvas id="cv"></canvas></div>
+      <div class="rng">
+        <span>第</span><input type="range" id="dRng" min="0" max="0" value="0"><span>轮 <b id="dVal">0 / 0</b></span>
+      </div>
+      <div class="note">
+        对角线上一格 = 两边内容相同（<b>蛇形延伸</b>）；向右一步 = 删掉 A 的一个单元；向上一步 = 插入 B 的一个单元。
+        算法每一轮 <code>d</code> 都沿所有 <code>k</code> 对角线向外推一格，淡色折线就是这些<b>波前</b>；
+        当某条对角线同时够到了右上角，那条曲折的粗线就是最短编辑路径。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>4 · 差异</h2><span class="hint" id="diffHint"></span>
+      <span class="right">
+        <button id="btnSide" class="sm">并排 / 统一</button>
+      </span>
+    </div>
+    <div class="card-b"><div id="diffBox"></div></div>
+  </div>
+
+  <div class="card" id="movCard" hidden>
+    <div class="card-h"><h2>5 · 整块移动</h2><span class="hint">内容没改，只是换了位置 —— 相似度超过阈值就挑出来</span></div>
+    <div class="card-b"><div class="mvlist" id="movBox"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>6 · 补丁与自验证</h2><span class="hint">把生成的补丁重新打回 A，必须逐字节还原出 B</span>
+      <span class="right"><button id="btnPatch" class="sm">复制补丁</button><button id="btnDl" class="sm">下载 .patch</button></span>
+    </div>
+    <div class="card-b">
+      <div id="patchNote" class="note"></div>
+      <pre class="patch" id="patchBox"></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>7 · 这面镜子在照什么</h2></div>
+    <details class="exp">
+      <summary>算法原理（点开）</summary>
+      <div class="body">
+        <h4>把 diff 变成一张地图上的最短路</h4>
+        <p>设 A 有 N 个单元、B 有 M 个单元。画一张 (N+1)×(M+1) 的网格，点 <code>(x, y)</code> 表示
+        「A 已经处理了 x 个、B 已经处理了 y 个」。从 <code>(0,0)</code> 走到 <code>(N,M)</code>：</p>
+        <ul>
+          <li><b>向右</b>走一步 <code>(x+1, y)</code> = A 的这一单元被<b>删掉</b></li>
+          <li><b>向上</b>走一步 <code>(x, y+1)</code> = <b>插入</b> B 的这一单元</li>
+          <li><b>斜着</b>走一步 <code>(x+1, y+1)</code> = 两边相等，<b>免费</b>，不消耗编辑次数</li>
+        </ul>
+        <p>于是「最短编辑脚本」就是这张图上<b>斜线最多、直线最少</b>的那条路。Myers 的洞见是：
+        按「直线步数」<code>d</code> 一层一层往外搜，第一次够到终点就是最优解。</p>
+
+        <h4>对角线编号与波前</h4>
+        <p>令 <code>k = x − y</code>（第 k 条对角线）。算法维护 <code>V[k]</code>：走 d 步之后，
+        在 k 这条对角线上最远能到达的 x。每轮对 <code>k = −d, −d+2, …, d</code> 各推进一步，
+        然后沿对角线<b>能滑多远滑多远</b>（这就是 snake）。第一版实现里那些淡色折线，
+        就是每一轮所有 V[k] 连起来形成的<b>波前</b>。</p>
+        <p>复杂度 <code>O((N+M)·D)</code>，D 是编辑距离。文本越像，D 越小，跑得越快 —— 这正好是 diff 的常见情形。</p>
+
+        <h4>为什么要保存每一轮的 V</h4>
+        <p>算法往前推时只知道「最远能到哪」，不知道「怎么走到的」。所以要把每轮的 V 存下来，
+        最后从终点<b>倒着</b>推回去：每一层看当时是从 k−1 还是 k+1 跳过来的，反推出是删还是插，
+        再把斜着滑过的那段补成「相等」。这就是第 3 面板里那条粗路径的来源。</p>
+
+        <h4>词级 / 字符级</h4>
+        <p>同一套算法，换掉「单元」的定义就是另一种粒度：按行切就是行级 diff，
+        按词切就是词级（中文按字、英文按词，空白也当一个单元），按字符切就是字符级。
+        行模式下，被判为「一删一插」的相邻行还会<b>再跑一次词级 diff</b>，标出这一行里到底改了哪几个词。</p>
+
+        <h4>自验证</h4>
+        <p>面板 6 会把生成的 unified diff 重新打回 A，再和 B 逐字节比。这个闭环不是装饰 ——
+        编辑脚本、补丁生成、补丁应用三处只要有一处写错，这里立刻就会红。</p>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   0. 工具
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/* ============================================================
+   1. 切分：行 / 词 / 字符
+   ============================================================ */
+const SPLIT_NL = /\r\n|\r|\n/;
+
+function splitLines(text){
+  const out = text.split(SPLIT_NL);
+  // 末尾若以换行结尾，split 会多出一个空串，丢掉它（它不是真实的一行）
+  if (out.length && out[out.length - 1] === '') out.pop();
+  return out;
+}
+
+const CJK = /[\u3400-\u4DBF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\uF900-\uFAFF]/;
+
+/* 词级切分：中文/日文/韩文逐字，连续的拉丁字母数字算一个词，空白单独成段，其余标点逐字 */
+function splitWords(text){
+  const out = [];
+  let buf = '';
+  const flush = () => { if (buf){ out.push(buf); buf = ''; } };
+  for (const ch of text){
+    if (/[A-Za-z0-9_$]/.test(ch)) buf += ch;
+    else if (/\s/.test(ch)){ flush(); out.push(ch); }
+    else { flush(); out.push(ch); }
+  }
+  flush();
+  return out;
+}
+
+function tokenize(text, gran){
+  if (gran === 'line') return splitLines(text);
+  if (gran === 'char') return Array.from(text);
+  return splitWords(text);
+}
+
+function normOf(s, opts){
+  let v = s;
+  if (opts.ignoreWS) v = v.replace(/^\s+|\s+$/g, '');
+  if (opts.ignoreCase) v = v.toLowerCase();
+  return v;
+}
+
+/* ============================================================
+   2. Myers O(ND) 最短编辑脚本
+   ============================================================ */
+const MAX_WORK = 4e7;
+
+function myers(A, B, eq){
+  const N = A.length, M = B.length;
+  const MAXD = N + M;
+  const traces = [];
+  let V = { 1: 0 };
+  let work = 0;
+
+  for (let d = 0; d <= MAXD; d++){
+    traces.push(V);
+    const next = {};
+    for (let k = -d; k <= d; k += 2){
+      let x;
+      const down = (k === -d) || (k !== d && (V[k - 1] === undefined ? -Infinity : V[k - 1]) < (V[k + 1] === undefined ? -Infinity : V[k + 1]));
+      if (down) x = V[k + 1] === undefined ? -Infinity : V[k + 1];
+      else x = (V[k - 1] === undefined ? -Infinity : V[k - 1]) + 1;
+      let y = x - k;
+      while (x < N && y < M && eq(A[x], B[y])){ x++; y++; if (++work > MAX_WORK) break; }
+      next[k] = x;
+      if (x >= N && y >= M){
+        return { script: backtrack(A, B, traces, d), D: d, traces: traces, N: N, M: M, ok: true };
+      }
+      if (++work > MAX_WORK) break;
+    }
+    V = next;
+    if (work > MAX_WORK) break;
+  }
+  return { script: null, D: -1, traces: traces, N: N, M: M, ok: false };
+}
+
+/* 从终点倒推：每一层看当时是从哪条对角线跳过来的 */
+function backtrack(A, B, traces, D){
+  const path = [];
+  let x = A.length, y = B.length;
+  for (let d = D; d >= 0; d--){
+    const V = traces[d];
+    const k = x - y;
+    const vkm1 = V[k - 1] === undefined ? -Infinity : V[k - 1];
+    const vkp1 = V[k + 1] === undefined ? -Infinity : V[k + 1];
+    let prevK;
+    if (k === -d || (k !== d && vkm1 < vkp1)) prevK = k + 1;
+    else prevK = k - 1;
+    const prevX = V[prevK] === undefined ? 0 : V[prevK];
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY){ path.push({ t: 'eq', a: x - 1, b: y - 1 }); x--; y--; }
+    if (d > 0){
+      if (x === prevX) path.push({ t: 'ins', b: y - 1 });       // 向上：插入 B[y-1]
+      else path.push({ t: 'del', a: x - 1 });                    // 向右：删除 A[x-1]
+      x = prevX; y = prevY;
+    }
+  }
+  path.reverse();
+  return path;
+}
+
+/* 把脚本按顺序重放：从 A 出发，删掉 del、补上 ins，应当逐单元还原出 B。
+   这是整个算法最强的自检 —— 顺序、配对、覆盖只要错一处，这里就对不上。 */
+function applyScript(A, B, script){
+  const out = [];
+  for (const op of script){
+    if (op.t === 'eq') out.push(A[op.a]);
+    else if (op.t === 'del') { /* 删掉，不输出 */ }
+    else out.push(B[op.b]);
+  }
+  return out;
+}
+
+/* ============================================================
+   3. 成块：把扁平脚本切成 hunk，并识别「一删一插」的修改对
+   ============================================================ */
+function toBlocks(script, ctx){
+  const ops = [];
+  for (const op of script){
+    const last = ops[ops.length - 1];
+    if (last && last.t === op.t) last.items.push(op);
+    else ops.push({ t: op.t, items: [op] });
+  }
+  // 标记需要显示上下文的位置
+  const flags = ops.map(o => o.t !== 'eq');
+  const show = new Array(ops.length).fill(false);
+  for (let i = 0; i < ops.length; i++){
+    if (!flags[i]) continue;
+    for (let j = Math.max(0, i - ctx); j <= Math.min(ops.length - 1, i + ctx); j++) show[j] = true;
+  }
+  const hunks = [];
+  let cur = null;
+  for (let i = 0; i < ops.length; i++){
+    if (show[i]){
+      if (!cur){ cur = { ops: [], startA: 0, startB: 0 }; hunks.push(cur); }
+      cur.ops.push(ops[i]);
+    } else if (cur) cur = null;
+  }
+  // 补上每个 hunk 的起始行号（用于生成 @@ 头）
+  let ai = 0, bi = 0, oi = 0;
+  for (let h = 0; h < hunks.length; h++){
+    while (oi < ops.length){
+      const o = ops[oi];
+      if (hunks[h].ops.indexOf(o) >= 0) break;
+      for (const it of o.items){
+        if (o.t === 'eq' || o.t === 'del') ai++;
+        if (o.t === 'eq' || o.t === 'ins') bi++;
+      }
+      oi++;
+    }
+    hunks[h].startA = ai; hunks[h].startB = bi;
+    for (const o of hunks[h].ops){
+      for (const it of o.items){
+        if (o.t === 'eq' || o.t === 'del') ai++;
+        if (o.t === 'eq' || o.t === 'ins') bi++;
+      }
+      oi++;
+    }
+  }
+  return hunks;
+}
+
+/* ============================================================
+   4. 词级 diff（行模式下给「修改对」用）
+   ============================================================ */
+function wordDiff(a, b, opts){
+  const A = splitWords(a), B = splitWords(b);
+  const ka = A.map(s => normOf(s, opts)), kb = B.map(s => normOf(s, opts));
+  const r = myers(ka, kb, (x, y) => x === y);
+  if (!r.ok || !r.script) return null;
+  return r.script.map(op => ({
+    t: op.t,
+    s: op.t === 'ins' ? B[op.b] : A[op.a]
+  }));
+}
+
+/* ============================================================
+   5. 移动块检测
+   ============================================================ */
+function jaccard(a, b){
+  if (!a.length || !b.length) return 0;
+  const sa = new Set(a), sb = new Set(b);
+  let inter = 0;
+  for (const v of sa) if (sb.has(v)) inter++;
+  return inter / (sa.size + sb.size - inter);
+}
+function detectMoves(script, A, B, opts, thres){
+  const dels = [], inss = [];
+  let i = 0;
+  while (i < script.length){
+    if (script[i].t === 'del'){
+      const st = i; while (i < script.length && script[i].t === 'del') i++;
+      dels.push({ ops: script.slice(st, i) });
+    } else if (script[i].t === 'ins'){
+      const st = i; while (i < script.length && script[i].t === 'ins') i++;
+      inss.push({ ops: script.slice(st, i) });
+    } else i++;
+  }
+  const pairs = [];
+  for (const d of dels){
+    if (d.ops.length < 1) continue;
+    const da = d.ops.map(o => normOf(A[o.a], opts));
+    for (const n of inss){
+      if (n.ops.length < 1) continue;
+      const nb = n.ops.map(o => normOf(B[o.b], opts));
+      const sim = jaccard(da, nb);
+      if (sim >= thres) pairs.push({ del: d, ins: n, sim: sim });
+    }
+  }
+  pairs.sort((p, q) => q.sim - p.sim);
+  const usedD = new Set(), usedI = new Set();
+  const out = [];
+  for (const p of pairs){
+    if (usedD.has(p.del) || usedI.has(p.ins)) continue;
+    usedD.add(p.del); usedI.add(p.ins);
+    out.push({
+      sim: p.sim,
+      from: p.del.ops[0].a,
+      to: p.ins.ops[0].b,
+      len: p.del.ops.length,
+      text: A[p.del.ops[0].a] || '',
+      delOps: new Set(p.del.ops),
+      insOps: new Set(p.ins.ops)
+    });
+  }
+  out.sort((a, b) => a.from - b.from);
+  return out;
+}
+
+/* ============================================================
+   6. unified diff 补丁：生成 / 解析 / 应用
+   ============================================================ */
+function makePatch(A, B, script, ctx, nameA, nameB){
+  const hunks = toBlocks(script, ctx);
+  const lines = ['--- ' + (nameA || 'a'), '+++ ' + (nameB || 'b')];
+  for (const h of hunks){
+    let ca = h.startA, cb = h.startB, na = 0, nb = 0;
+    const body = [];
+    for (const o of h.ops){
+      for (const it of o.items){
+        if (o.t === 'eq'){ body.push(' ' + A[it.a]); na++; nb++; }
+        else if (o.t === 'del'){ body.push('-' + A[it.a]); na++; }
+        else { body.push('+' + B[it.b]); nb++; }
+      }
+    }
+    lines.push('@@ -' + (na ? ca + 1 : ca) + ',' + na + ' +' + (nb ? cb + 1 : cb) + ',' + nb + ' @@');
+    for (const l of body) lines.push(l);
+  }
+  return lines.join('\n') + (lines.length > 2 ? '\n' : '');
+}
+
+function applyPatch(A, patch){
+  const lines = patch.split('\n');
+  const out = [];
+  let src = 0;         // A 的读取位置
+  let i = 0;
+  while (i < lines.length && !(lines[i].indexOf('@@') === 0)) i++;   // 跳过 --- +++
+  while (i < lines.length){
+    const h = lines[i];
+    if (h.indexOf('@@') === 0){
+      const m = h.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+      if (!m) return { ok: false, reason: 'hunk 头无法解析: ' + h };
+      const startRaw = parseInt(m[1], 10);
+      const cntRaw = m[2] === undefined ? 1 : parseInt(m[2], 10);
+      // unified diff 的约定：@@ -a,b @@ 里 a 是 1 基起始行号。
+      // b > 0 时插入/替换从 0 基下标 a-1 开始；b == 0 是纯插入，
+      // 意思是「插在第 a 行之后」，0 基下标就是 a 本身 —— 这里不能再减 1。
+      const start = cntRaw === 0 ? startRaw : startRaw - 1;
+      while (src < start){ out.push(A[src]); src++; }
+      i++;
+      let consumed = 0;
+      while (i < lines.length && lines[i].indexOf('@@') !== 0){
+        const l = lines[i];
+        const tag = l.charAt(0);
+        if (tag === ' '){
+          out.push(A[src]); src++; consumed++;
+        } else if (tag === '-'){
+          src++; consumed++;
+        } else if (tag === '+'){
+          out.push(l.slice(1));
+        } else if (l === ''){
+          // 空行：当作上下文（patch 里被截断的尾部）
+          break;
+        } else {
+          return { ok: false, reason: '无法识别的补丁行: ' + JSON.stringify(l) };
+        }
+        i++;
+      }
+      if (consumed !== cntRaw && cntRaw !== 0){
+        // 容忍计数误差（忽略空白等情况下可能不一致），但行号必须推进到位
+      }
+    } else i++;
+  }
+  while (src < A.length){ out.push(A[src]); src++; }
+  return { ok: true, text: out.join('\n') };
+}
+
+/* ============================================================
+   7. 主流程
+   ============================================================ */
+const APP = {
+  A: [], B: [], ka: [], kb: [],
+  res: null, script: null, gran: 'line',
+  opts: { ignoreWS: false, ignoreCase: false, detectMove: true },
+  moves: [], sideBySide: true, dShow: 0, playing: false, ms: 0, ctxSize: 3
+};
+
+const SAMPLES = [
+  {
+    name: '代码改动（函数重构）',
+    a: 'function fetchUser(id) {\n  const url = "/api/user/" + id;\n  return fetch(url)\n    .then(res => res.json())\n    .then(data => {\n      return data;\n    });\n}\n\nfunction render(user) {\n  console.log(user.name);\n}',
+    b: 'function fetchUser(id) {\n  const url = `/api/user/${id}`;\n  return fetch(url)\n    .then(res => res.json());\n}\n\nasync function render(user) {\n  const profile = await loadProfile(user.id);\n  console.log(profile.name);\n}'
+  },
+  {
+    name: '中文段落改写',
+    a: '我们把整个系统的日志模块重写了一遍。\n原来的实现每次写日志都要加锁，\n在高并发下锁竞争非常严重，\nCPU 有大量时间花在等待上。\n新的实现改成无锁的环形缓冲区，\n写操作只是一次原子自增。\n压测结果显示吞吐量提升了四倍。',
+    b: '我们把整个系统的日志模块重写了一遍。\n原来的实现每次写日志都要加全局锁，\n在高并发的场景下锁竞争非常严重，\n导致 CPU 有大量时间花在等待上。\n新的实现改成无锁的环形缓冲区，\n写操作退化成一次原子自增。\n压测结果显示吞吐量提升了四倍，\n而且延迟的长尾也消失了。'
+  },
+  {
+    name: '整块移动（段落换位置）',
+    a: '第一节：安装\n请先安装 Node 18 以上版本。\n\n第二节：配置\n把 config.example.json 复制成 config.json。\n\n第三节：启动\n运行 npm start 即可。',
+    b: '第一节：安装\n请先安装 Node 18 以上版本。\n\n第三节：启动\n运行 npm start 即可。\n\n第二节：配置\n把 config.example.json 复制成 config.json。'
+  },
+  {
+    name: '配置项增删',
+    a: 'port=8080\nhost=127.0.0.1\ndebug=false\nlog_level=info\nmax_conn=100\ntimeout=30',
+    b: 'port=8080\nhost=0.0.0.0\ndebug=true\nlog_level=debug\nmax_conn=500\ntimeout=30\ntls_enabled=true\ncert_path=/etc/ssl/cert.pem'
+  }
+];
+
+function run(){
+  const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const ta = $('#ta').value, tb = $('#tb').value;
+  APP.gran = $('#gran').value;
+  APP.opts.ignoreWS = $('#cbWS').checked;
+  APP.opts.ignoreCase = $('#cbCase').checked;
+  APP.opts.detectMove = $('#cbMove').checked;
+
+  APP.A = tokenize(ta, APP.gran);
+  APP.B = tokenize(tb, APP.gran);
+  APP.ka = APP.A.map(s => normOf(s, APP.opts));
+  APP.kb = APP.B.map(s => normOf(s, APP.opts));
+
+  setText('#cntA', APP.A.length + (APP.gran === 'line' ? ' 行' : ' 单元'));
+  setText('#cntB', APP.B.length + (APP.gran === 'line' ? ' 行' : ' 单元'));
+
+  if (!APP.A.length && !APP.B.length){
+    APP.res = null; APP.script = [];
+    renderAll();
+    return;
+  }
+
+  APP.res = myers(APP.ka, APP.kb, (x, y) => x === y);
+  APP.script = APP.res.ok ? APP.res.script : [];
+  APP.moves = [];
+  if (APP.res.ok && APP.gran === 'line' && APP.opts.detectMove){
+    APP.moves = detectMoves(APP.script, APP.A, APP.B, APP.opts, 0.5);
+  }
+  APP.dShow = APP.res.ok ? APP.res.D : 0;
+  const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  APP.ms = t1 - t0;
+  renderAll();
+}
+
+/* ============================================================
+   8. 渲染
+   ============================================================ */
+function setText(sel, v){ const el = $(sel); if (el) el.textContent = v; }
+function setHTML(sel, v){ const el = $(sel); if (el) el.innerHTML = v; }
+
+function renderAll(){
+  renderOverview();
+  renderGraph();
+  renderDiff();
+  renderMoves();
+  renderPatch();
+}
+
+function renderOverview(){
+  const N = APP.A.length, M = APP.B.length;
+  if (!APP.res || !APP.res.ok){
+    setText('#sD', '—'); setText('#sSim', '—'); setText('#sLcs', '—');
+    setText('#sIns', '—'); setText('#sDel', '—'); setText('#sMov', '—');
+    setText('#sNA', N); setText('#sNB', M); setText('#sMs', Math.round(APP.ms));
+    setHTML('#ovHint', '<span class="bad">差异过大，已放弃求解</span>');
+    setText('#noteOv', '两端内容几乎完全不同，Myers 的搜索空间爆炸了。缩小范围或换个粒度再试。');
+    return;
+  }
+  const D = APP.res.D;
+  const ins = APP.script.filter(o => o.t === 'ins').length;
+  const del = APP.script.filter(o => o.t === 'del').length;
+  const eq = APP.script.filter(o => o.t === 'eq').length;
+  const sim = (N + M) ? (2 * eq) / (N + M) : 1;
+  setText('#sD', D);
+  setText('#sSim', (sim * 100).toFixed(1) + '%');
+  setText('#sLcs', eq);
+  setText('#sIns', ins);
+  setText('#sDel', del);
+  setText('#sMov', APP.moves.length);
+  setText('#sNA', N); setText('#sNB', M); setText('#sMs', APP.ms.toFixed(1));
+  setHTML('#ovHint', D === 0 ? '<span class="ok">两端完全相同</span>' : '');
+  const parts = ['共 ' + eq + ' 个单元没动，相似度按 <b>2×公共子序列 / (A+B)</b> 计算。'];
+  if (APP.gran === 'line' && APP.moves.length) parts.push('其中 ' + APP.moves.length + ' 段被判定为<b>整块移动</b>（内容没改位置变了）。');
+  setHTML('#noteOv', parts.join(' '));
+}
+
+function renderGraph(){
+  const cv = $('#cv');
+  const rng = $('#dRng');
+  if (!cv || !APP.res) return;
+  const N = APP.A.length, M = APP.B.length;
+  const max = (rng ? Number(rng.max) : 0);
+  if (rng){ rng.max = String(APP.res.ok ? APP.res.D : 0); rng.value = String(APP.dShow); }
+  setText('#dVal', APP.dShow + ' / ' + (APP.res.ok ? APP.res.D : 0));
+
+  if (!APP.res.ok || (N + M) > 4000){
+    cv.width = 400; cv.height = 90; cv.style.width = '400px'; cv.style.height = '90px';
+    const g = cv.getContext ? cv.getContext('2d') : null;
+    if (g){
+      g.fillStyle = '#fbfcfd'; g.fillRect(0, 0, 400, 90);
+      g.fillStyle = '#9ca3af'; g.font = '12px sans-serif'; g.textAlign = 'center';
+      g.fillText((N + M) > 4000 ? '单元太多（' + (N + M) + '），不画编辑图' : '未求解', 200, 50);
+    }
+    return;
+  }
+
+  const boxW = Math.max(360, (cv.parentElement ? cv.parentElement.clientWidth : 960) - 20);
+  const boxH = clamp(Math.round(boxW * 0.56), 220, 520);
+  const pad = 26;
+  const cw = (boxW - pad * 2) / Math.max(1, N);
+  const ch = (boxH - pad * 2) / Math.max(1, M);
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+  cv.width = boxW * dpr; cv.height = boxH * dpr;
+  cv.style.width = boxW + 'px'; cv.style.height = boxH + 'px';
+  const g = cv.getContext ? cv.getContext('2d') : null;
+  if (!g) return;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const X = x => pad + x * cw;
+  const Y = y => boxH - pad - y * ch;
+
+  g.fillStyle = '#fff'; g.fillRect(0, 0, boxW, boxH);
+
+  // 网格
+  g.strokeStyle = '#f1f3f5'; g.lineWidth = 1;
+  g.beginPath();
+  const stepX = Math.max(1, Math.ceil(N / 60)), stepY = Math.max(1, Math.ceil(M / 40));
+  for (let x = 0; x <= N; x += stepX){ g.moveTo(X(x), Y(0)); g.lineTo(X(x), Y(M)); }
+  for (let y = 0; y <= M; y += stepY){ g.moveTo(X(0), Y(y)); g.lineTo(X(N), Y(y)); }
+  g.stroke();
+
+  // 轴与刻度
+  g.strokeStyle = '#d1d5db'; g.beginPath();
+  g.moveTo(X(0), Y(0)); g.lineTo(X(N), Y(0));
+  g.moveTo(X(0), Y(0)); g.lineTo(X(0), Y(M));
+  g.stroke();
+  g.fillStyle = '#9ca3af'; g.font = '10px ui-monospace,Menlo,monospace';
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  for (let x = 0; x <= N; x += stepX * 4) g.fillText(String(x), X(x), Y(0) + 4);
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let y = 0; y <= M; y += stepY * 4) g.fillText(String(y), X(0) - 5, Y(y));
+  g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillStyle = '#6b7280';
+  g.fillText('A（删除 →）', X(0) + 2, boxH - pad + 8);
+  g.save(); g.translate(pad - 18, Y(M) - 4); g.rotate(-Math.PI / 2);
+  g.fillText('B（插入 ↑）', -60, 0); g.restore();
+
+  // 波前：第 0..dShow 轮
+  const traces = APP.res.traces;
+  for (let d = 0; d <= Math.min(APP.dShow, traces.length - 1); d++){
+    const V = traces[d];
+    const t = d / Math.max(1, traces.length - 1);
+    g.strokeStyle = 'rgba(13,148,136,' + (0.10 + 0.22 * t).toFixed(3) + ')';
+    g.lineWidth = d === APP.dShow ? 1.8 : 1;
+    g.beginPath();
+    let first = true;
+    for (let k = -d; k <= d; k += 2){
+      const x = V[k];
+      if (x === undefined) continue;
+      const y = x - k;
+      if (y < 0 || y > M || x < 0 || x > N) continue;
+      if (first){ g.moveTo(X(x), Y(y)); first = false; } else g.lineTo(X(x), Y(y));
+    }
+    g.stroke();
+  }
+
+  // 最终路径
+  if (APP.dShow >= APP.res.D && APP.script && APP.script.length){
+    g.lineWidth = Math.max(1.6, Math.min(cw, ch) * 0.35);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    let px = 0, py = 0;
+    for (const op of APP.script){
+      let nx = px, ny = py;
+      if (op.t === 'eq'){ nx = op.a + 1; ny = op.b + 1; }
+      else if (op.t === 'del'){ nx = op.a + 1; ny = py; }
+      else { nx = px; ny = op.b + 1; }
+      g.strokeStyle = op.t === 'eq' ? '#0d9488' : (op.t === 'del' ? '#dc2626' : '#059669');
+      g.beginPath(); g.moveTo(X(px), Y(py)); g.lineTo(X(nx), Y(ny)); g.stroke();
+      px = nx; py = ny;
+    }
+  }
+
+  // 起终点
+  g.fillStyle = '#111827';
+  g.beginPath(); g.arc(X(0), Y(0), 3.2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = APP.dShow >= APP.res.D ? '#059669' : '#9ca3af';
+  g.beginPath(); g.arc(X(N), Y(M), 3.6, 0, Math.PI * 2); g.fill();
+}
+
+function renderDiff(){
+  const box = $('#diffBox');
+  if (!box) return;
+  if (!APP.res || !APP.res.ok){
+    box.innerHTML = '<div class="empty">没有可用的比对结果。</div>';
+    setText('#diffHint', '');
+    return;
+  }
+  if (APP.gran !== 'line'){
+    setText('#diffHint', '流式视图（' + (APP.gran === 'word' ? '词' : '字符') + '级）');
+    box.innerHTML = '<div class="flow">' + renderFlow() + '</div>';
+    return;
+  }
+  setText('#diffHint', APP.sideBySide ? '并排视图' : '统一视图');
+  box.innerHTML = APP.sideBySide ? renderSide() : renderUnified();
+}
+
+/* 行级：并排 */
+function renderSide(){
+  const ctx = APP.ctxSize;
+  const hunks = toBlocks(APP.script, ctx);
+  const movDel = new Set(), movIns = new Set();
+  for (const m of APP.moves){ for (const o of m.delOps) movDel.add(o); for (const o of m.insOps) movIns.add(o); }
+
+  let html = '<table class="diff"><colgroup><col style="width:52px"><col style="width:16px"><col><col style="width:52px"><col style="width:16px"><col></colgroup>';
+  if (!hunks.length) return '<div class="empty">两端完全相同。</div>';
+  for (const h of hunks){
+    html += '<tr class="hunk"><td colspan="6">@@ A 第 ' + (h.startA + 1) + ' 行起 · B 第 ' + (h.startB + 1) + ' 行起 @@</td></tr>';
+    let ai = h.startA, bi = h.startB;
+    const ops = h.ops.slice();
+    let i = 0;
+    while (i < ops.length){
+      const o = ops[i];
+      if (o.t === 'eq'){
+        for (const it of o.items){
+          html += '<tr class="eq"><td class="ln">' + (ai + 1) + '</td><td class="mk"> </td><td class="c">' + esc(APP.A[it.a]) + '</td>' +
+                  '<td class="ln">' + (bi + 1) + '</td><td class="mk"> </td><td class="c">' + esc(APP.B[it.b]) + '</td></tr>';
+          ai++; bi++;
+        }
+        i++; continue;
+      }
+      // 收集紧邻的一串 del / ins
+      const ds = [], is = [];
+      while (i < ops.length && ops[i].t !== 'eq'){
+        if (ops[i].t === 'del') ds.push(...ops[i].items); else is.push(...ops[i].items);
+        i++;
+      }
+      const pair = Math.min(ds.length, is.length);
+      for (let k = 0; k < pair; k++){
+        const dOp = ds[k], iOp = is[k];
+        const md = movDel.has(dOp), mi = movIns.has(iOp);
+        const cls = md ? 'mov' : 'del';
+        const wd = wordDiff(APP.A[dOp.a], APP.B[iOp.b], APP.opts);
+        const left = wd ? wd.filter(w => w.t !== 'ins').map(w => w.t === 'del' ? '<span class="del2">' + esc(w.s) + '</span>' : esc(w.s)).join('') : esc(APP.A[dOp.a]);
+        const right = wd ? wd.filter(w => w.t !== 'del').map(w => w.t === 'ins' ? '<span class="ins2">' + esc(w.s) + '</span>' : esc(w.s)).join('') : esc(APP.B[iOp.b]);
+        html += '<tr class="' + cls + '"><td class="ln">' + (ai + 1) + '</td><td class="mk">' + (md ? '⇄' : '−') + '</td><td class="c">' + left + '</td>' +
+                '<td class="ln">' + (bi + 1) + '</td><td class="mk">' + (mi ? '⇄' : '+') + '</td><td class="c">' + right + '</td></tr>';
+        ai++; bi++;
+      }
+      for (let k = pair; k < ds.length; k++){
+        const md = movDel.has(ds[k]);
+        html += '<tr class="' + (md ? 'mov' : 'del') + '"><td class="ln">' + (ai + 1) + '</td><td class="mk">' + (md ? '⇄' : '−') + '</td><td class="c">' + esc(APP.A[ds[k].a]) + '</td>' +
+                '<td class="ln"></td><td class="mk"></td><td class="c"></td></tr>';
+        ai++;
+      }
+      for (let k = pair; k < is.length; k++){
+        const mi = movIns.has(is[k]);
+        html += '<tr class="' + (mi ? 'mov' : 'ins') + '"><td class="ln"></td><td class="mk"></td><td class="c"></td>' +
+                '<td class="ln">' + (bi + 1) + '</td><td class="mk">' + (mi ? '⇄' : '+') + '</td><td class="c">' + esc(APP.B[is[k].b]) + '</td></tr>';
+        bi++;
+      }
+    }
+  }
+  return html + '</table>';
+}
+
+/* 行级：统一 */
+function renderUnified(){
+  const hunks = toBlocks(APP.script, APP.ctxSize);
+  const movDel = new Set(), movIns = new Set();
+  for (const m of APP.moves){ for (const o of m.delOps) movDel.add(o); for (const o of m.insOps) movIns.add(o); }
+  if (!hunks.length) return '<div class="empty">两端完全相同。</div>';
+  let html = '<table class="diff"><colgroup><col style="width:52px"><col style="width:52px"><col style="width:16px"><col></colgroup>';
+  for (const h of hunks){
+    html += '<tr class="hunk"><td colspan="4">@@ -' + (h.startA + 1) + ' +' + (h.startB + 1) + ' @@</td></tr>';
+    let ai = h.startA, bi = h.startB;
+    for (const o of h.ops){
+      for (const it of o.items){
+        if (o.t === 'eq'){
+          html += '<tr class="eq"><td class="ln">' + (ai + 1) + '</td><td class="ln">' + (bi + 1) + '</td><td class="mk"> </td><td class="c">' + esc(APP.A[it.a]) + '</td></tr>';
+          ai++; bi++;
+        } else if (o.t === 'del'){
+          const md = movDel.has(it);
+          html += '<tr class="' + (md ? 'mov' : 'del') + '"><td class="ln">' + (ai + 1) + '</td><td class="ln"></td><td class="mk">' + (md ? '⇄' : '−') + '</td><td class="c">' + esc(APP.A[it.a]) + '</td></tr>';
+          ai++;
+        } else {
+          const mi = movIns.has(it);
+          html += '<tr class="' + (mi ? 'mov' : 'ins') + '"><td class="ln"></td><td class="ln">' + (bi + 1) + '</td><td class="mk">' + (mi ? '⇄' : '+') + '</td><td class="c">' + esc(APP.B[it.b]) + '</td></tr>';
+          bi++;
+        }
+      }
+    }
+  }
+  return html + '</table>';
+}
+
+/* 词级 / 字符级：流式 */
+function renderFlow(){
+  let out = '';
+  for (const op of APP.script){
+    const s = op.t === 'ins' ? APP.B[op.b] : APP.A[op.a];
+    if (op.t === 'eq') out += esc(s);
+    else if (op.t === 'del') out += '<span class="d">' + esc(s) + '</span>';
+    else out += '<span class="a">' + esc(s) + '</span>';
+  }
+  return out || '<span style="color:#9ca3af">（空）</span>';
+}
+
+function renderMoves(){
+  const card = $('#movCard'), box = $('#movBox');
+  if (!card || !box) return;
+  if (!APP.moves.length){ card.hidden = true; return; }
+  card.hidden = false;
+  let html = '';
+  for (const m of APP.moves){
+    html += '<div class="mv"><span class="p">A' + (m.from + 1) + ' → B' + (m.to + 1) + '</span>' +
+            '<span class="t">' + esc(m.text.slice(0, 60)) + (m.len > 1 ? '  …共 ' + m.len + ' 行' : '') + '</span>' +
+            '<span class="p">相似 ' + (m.sim * 100).toFixed(0) + '%</span></div>';
+  }
+  box.innerHTML = html;
+}
+
+function renderPatch(){
+  const box = $('#patchBox'), note = $('#patchNote');
+  if (!box || !note) return;
+  if (APP.gran !== 'line' || !APP.res || !APP.res.ok){
+    box.textContent = '';
+    note.textContent = '补丁只在「行」粒度下生成（unified diff 是按行的）。';
+    return;
+  }
+  if (!APP.script.length){
+    box.textContent = '';
+    note.innerHTML = '<span class="ok">两端完全相同，没有补丁可生成。</span>';
+    return;
+  }
+  const patch = makePatch(APP.A, APP.B, APP.script, APP.ctxSize, 'a', 'b');
+  box.textContent = patch;
+  const r = applyPatch(APP.A, patch);
+  if (!r.ok){
+    note.innerHTML = '<span class="bad">应用失败：' + esc(r.reason) + '</span>';
+    return;
+  }
+  const origB = APP.B.join('\n');
+  const same = r.text === origB;
+  if (same){
+    note.innerHTML = '<span class="ok">✓ 自验证通过</span> —— 把这份补丁打回 A，还原出的文本与 B 逐字节一致（' + APP.B.length + ' 行）。';
+  } else {
+    const ra = r.text.split('\n'), rb = APP.B;
+    let firstDiff = -1;
+    for (let i = 0; i < Math.max(ra.length, rb.length); i++){ if (ra[i] !== rb[i]){ firstDiff = i; break; } }
+    note.innerHTML = '<span class="bad">✗ 自验证失败</span> —— 第 ' + (firstDiff + 1) + ' 行不一致：得到 ' +
+      JSON.stringify(ra[firstDiff] || '') + '，期望 ' + JSON.stringify(rb[firstDiff] || '');
+  }
+}
+
+/* ============================================================
+   9. 绑定
+   ============================================================ */
+let RAF = null;
+function bind(){
+  const sel = $('#sample');
+  if (sel){
+    SAMPLES.forEach((s, i) => {
+      const o = document.createElement('option');
+      o.value = String(i); o.textContent = s.name;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', () => {
+      const i = Number(sel.value);
+      if (i >= 0 && SAMPLES[i]){
+        $('#ta').value = SAMPLES[i].a;
+        $('#tb').value = SAMPLES[i].b;
+        run();
+      }
+    });
+  }
+  const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
+  on('#btnRun', 'click', run);
+  on('#ta', 'input', debounce(run, 260));
+  on('#tb', 'input', debounce(run, 260));
+  on('#gran', 'change', run);
+  on('#cbWS', 'change', run);
+  on('#cbCase', 'change', run);
+  on('#cbMove', 'change', run);
+  on('#btnSwap', 'click', () => {
+    const a = $('#ta').value; $('#ta').value = $('#tb').value; $('#tb').value = a; run();
+  });
+  on('#btnClear', 'click', () => { $('#ta').value = ''; $('#tb').value = ''; run(); });
+  on('#btnSide', 'click', () => { APP.sideBySide = !APP.sideBySide; renderDiff(); });
+  on('#dRng', 'input', () => {
+    APP.dShow = Number($('#dRng').value);
+    stopPlay();
+    renderGraph();
+  });
+  on('#btnEnd', 'click', () => {
+    stopPlay();
+    APP.dShow = APP.res && APP.res.ok ? APP.res.D : 0;
+    renderGraph();
+  });
+  on('#btnPlay', 'click', () => {
+    if (APP.playing) stopPlay();
+    else {
+      if (APP.dShow >= (APP.res && APP.res.ok ? APP.res.D : 0)) APP.dShow = 0;
+      APP.playing = true;
+      $('#btnPlay').textContent = '暂停';
+      stepPlay();
+    }
+  });
+  on('#btnPatch', 'click', () => {
+    const t = $('#patchBox').textContent;
+    if (t && navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});
+  });
+  on('#btnDl', 'click', () => {
+    const t = $('#patchBox').textContent;
+    if (!t) return;
+    const blob = new Blob([t], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'diff-scope.patch';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  });
+  if (typeof window !== 'undefined' && window.addEventListener){
+    let t = null;
+    window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(renderGraph, 140); });
+  }
+}
+function debounce(fn, ms){
+  let t = null;
+  return function(){ clearTimeout(t); t = setTimeout(fn, ms); };
+}
+function stepPlay(){
+  if (!APP.playing) return;
+  const maxD = APP.res && APP.res.ok ? APP.res.D : 0;
+  APP.dShow++;
+  if (APP.dShow > maxD){ APP.dShow = maxD; stopPlay(); }
+  renderGraph();
+  if (APP.playing) RAF = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame(() => setTimeout(stepPlay, 40)) : setTimeout(stepPlay, 60);
+}
+function stopPlay(){
+  APP.playing = false;
+  if (RAF != null){
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(RAF);
+    else clearTimeout(RAF);
+    RAF = null;
+  }
+  const b = $('#btnPlay'); if (b) b.textContent = '播放';
+}
+
+function init(){
+  try {
+    bind();
+    $('#ta').value = SAMPLES[0].a;
+    $('#tb').value = SAMPLES[0].b;
+    run();
+  } catch (e){
+    if (typeof console !== 'undefined' && console.error) console.error(e);
+  }
+}
+
+if (typeof document !== 'undefined' && document.querySelector) init();
+</script>
+</body>
+</html>
