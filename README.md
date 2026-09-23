@@ -1,5 +1,12 @@
 # 差分镜 · Diff Scope
 
+<p align="center">
+  <a href="https://github.com/CJX0712/diff-scope/actions/workflows/ci.yml"><img src="https://github.com/CJX0712/diff-scope/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/CJX0712/diff-scope/releases"><img src="https://img.shields.io/github/v/release/CJX0712/diff-scope?sort=semver" alt="release"></a>
+  <a href="https://github.com/CJX0712/diff-scope/blob/main/LICENSE"><img src="https://img.shields.io/github/license/CJX0712/diff-scope" alt="license"></a>
+  <img src="https://img.shields.io/badge/author-%E6%99%A8%E6%98%9F-1f6feb" alt="author">
+</p>
+
 两段文本差在哪，几乎所有工具都能告诉你。这个工具想说的是另一件事：**它是怎么找到那个答案的**。
 
 Myers 差分算法的全过程 —— 每一轮的波前、每一条对角线的推进、最后那条最短编辑路径 —— 全部画在面板 3 的图上。
